@@ -6,8 +6,8 @@ name = "pypi"
 [packages]
 pytest = "*"
 requests = "*"
-duckdb = "*"
 geopy = "*"
+duckdb = "*"
 
 [dev-packages]
 
