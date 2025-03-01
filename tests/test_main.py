@@ -4,7 +4,7 @@ import main  # import our main module
 
 def fake_fetch_all_data(url, params=None, limit=10000):
     # For crime_responses endpoint, return sample data in ISO format.
-    if "crimereports" in url:
+    if "gvua-xt9q" in url:
         return [
             {
                 "id": "225000033",
