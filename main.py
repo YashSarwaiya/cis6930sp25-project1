@@ -15,8 +15,10 @@ import requests
 import duckdb
 from geopy.distance import geodesic
 
-# Configure logging to output to STDERR so that STDOUT only has final results.
+# Configure logging to output to STDERR.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
+# Disable logging so that no log messages appear in STDOUT.
+logging.disable(logging.CRITICAL)
 
 # API endpoints for retrieving data
 API_ENDPOINTS = {
@@ -43,7 +45,6 @@ def parse_date(date_str: str) -> Optional[str]:
             return dt.strftime("%Y-%m-%d")
         except ValueError:
             continue
-    logging.debug(f"Unable to parse date: {date_str}")
     return None
 
 def fetch_data(url: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
@@ -53,11 +54,8 @@ def fetch_data(url: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[s
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
-        data = response.json()
-        logging.info(f"Fetched {len(data)} records from {url} with params {params}")
-        return data
+        return response.json()
     except requests.RequestException as e:
-        logging.error(f"Error fetching data from {url}: {e}")
         return []
 
 def fetch_all_data(url: str, params: Optional[Dict[str, Any]] = None, limit: int = 10000) -> List[Dict[str, Any]]:
@@ -76,9 +74,8 @@ def fetch_all_data(url: str, params: Optional[Dict[str, Any]] = None, limit: int
             break
         all_data.extend(batch)
         if len(batch) < limit:
-            break  # No more records available.
+            break
         offset += limit
-    logging.info(f"Total records fetched from {url}: {len(all_data)}")
     return all_data
 
 def get_date_str(year: int, month: int, day: int) -> str:
@@ -105,14 +102,12 @@ def clean_record(category: str, entry: Dict[str, Any], target_date: str) -> Opti
             parsed_date = parse_date(raw_date)
             if parsed_date != target_date:
                 return None
-            # Arrest records assume 1 person and typically lack geolocation.
             return {
                 "case_number": entry["case_number"].strip(),
                 "people": 1,
                 "latitude": None,
                 "longitude": None
             }
-
         elif category == "traffic_crashes":
             raw_date = entry.get("accident_date", "")
             parsed_date = parse_date(raw_date)
@@ -123,7 +118,6 @@ def clean_record(category: str, entry: Dict[str, Any], target_date: str) -> Opti
             lat = float(entry.get("latitude", "").strip())
             lon = float(entry.get("longitude", "").strip())
             if not is_valid_coordinate(lat, lon):
-                logging.debug(f"Invalid coordinate in traffic crash: {lat}, {lon}")
                 return None
             return {
                 "case_number": entry["case_number"].strip(),
@@ -131,9 +125,8 @@ def clean_record(category: str, entry: Dict[str, Any], target_date: str) -> Opti
                 "latitude": lat,
                 "longitude": lon
             }
-
         elif category == "crime_responses":
-            # Use report_date for filtering
+            # Use report_date for filtering.
             raw_date = entry.get("report_date", "")
             parsed_date = parse_date(raw_date)
             if parsed_date != target_date:
@@ -141,7 +134,6 @@ def clean_record(category: str, entry: Dict[str, Any], target_date: str) -> Opti
             lat = float(entry.get("latitude", "").strip())
             lon = float(entry.get("longitude", "").strip())
             if not is_valid_coordinate(lat, lon):
-                logging.debug(f"Invalid coordinate in crime response: {lat}, {lon}")
                 return None
             return {
                 "case_number": entry["id"].strip(),
@@ -151,14 +143,12 @@ def clean_record(category: str, entry: Dict[str, Any], target_date: str) -> Opti
             }
         else:
             return None
-    except (KeyError, ValueError, AttributeError) as e:
-        logging.debug(f"Error cleaning record for category {category}: {e}")
+    except (KeyError, ValueError, AttributeError):
         return None
 
 def store_data_in_duckdb(incidents: List[Dict[str, Any]]) -> duckdb.DuckDBPyConnection:
     """
     Store valid incident records in an in-memory DuckDB database.
-    Only incidents with valid location data are inserted.
     """
     conn = duckdb.connect(database=":memory:")
     conn.execute("""
@@ -180,17 +170,15 @@ def store_data_in_duckdb(incidents: List[Dict[str, Any]]) -> duckdb.DuckDBPyConn
 def process_data(year: int, month: int, day: int) -> None:
     """
     Main processing routine:
-      - Fetches and cleans data from arrests, traffic crashes, and crime responses using pagination.
+      - Fetches and cleans data from arrests, traffic crashes, and crime responses.
       - Filters by the provided target date.
-      - Stores incidents with valid coordinates in DuckDB.
-      - Identifies the incident (with valid coordinates) involving the most people.
+      - Identifies the incident (with geolocation) involving the most people.
       - Filters all such incidents to those within strictly less than 1 km of that event.
-      - Outputs sorted results: number of people then case_number, separated by a tab.
+      - Outputs sorted results: number of people then case_number (separated by a tab).
     """
     target_date = get_date_str(year, month, day)
     incidents: List[Dict[str, Any]] = []
 
-    # Process each data source using pagination and the cleaning function.
     for category, url in API_ENDPOINTS.items():
         raw_data = fetch_all_data(url)
         for entry in raw_data:
@@ -199,20 +187,14 @@ def process_data(year: int, month: int, day: int) -> None:
                 incidents.append(cleaned)
 
     if not incidents:
-        logging.info("No incidents found for the specified date.")
         return
 
-    # Use only records with valid geolocation for distance-based filtering.
     incidents_with_loc = [inc for inc in incidents if inc["latitude"] is not None and inc["longitude"] is not None]
     if not incidents_with_loc:
-        logging.info("No incidents with valid location data available for distance calculation.")
         return
 
-    # Identify the incident with the maximum 'people' count among those with geolocation.
     max_incident = max(incidents_with_loc, key=lambda inc: inc["people"])
-    logging.info(f"Incident with maximum people: {max_incident}")
 
-    # Select incidents within strictly less than 1 km of the max_incident.
     nearby_incidents: List[Dict[str, Any]] = []
     for inc in incidents_with_loc:
         try:
@@ -222,17 +204,12 @@ def process_data(year: int, month: int, day: int) -> None:
             ).km
             if dist < 1:
                 nearby_incidents.append(inc)
-        except Exception as e:
-            logging.debug(f"Error calculating distance: {e}")
+        except Exception:
             continue
 
-    # Sort the nearby incidents by descending people count, then by descending numerical case number.
     nearby_incidents.sort(key=lambda inc: (-inc["people"], -int(inc["case_number"])))
-    
-    # Optionally store data in DuckDB for debugging; not used further.
     store_data_in_duckdb(incidents_with_loc)
 
-    # Output the final results (only this is sent to STDOUT)
     for inc in nearby_incidents:
         print(f"{inc['people']}\t{inc['case_number']}")
 
