@@ -15,9 +15,8 @@ import requests
 import duckdb
 from geopy.distance import geodesic
 
-# Configure logging to output to STDERR.
+# Configure logging to STDERR, then disable logging output so STDOUT contains only the final results.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
-# Disable logging so that no log messages appear in STDOUT.
 logging.disable(logging.CRITICAL)
 
 # API endpoints for retrieving data
@@ -55,7 +54,7 @@ def fetch_data(url: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[s
         response = requests.get(url, params=params)
         response.raise_for_status()
         return response.json()
-    except requests.RequestException as e:
+    except requests.RequestException:
         return []
 
 def fetch_all_data(url: str, params: Optional[Dict[str, Any]] = None, limit: int = 10000) -> List[Dict[str, Any]]:
@@ -74,7 +73,7 @@ def fetch_all_data(url: str, params: Optional[Dict[str, Any]] = None, limit: int
             break
         all_data.extend(batch)
         if len(batch) < limit:
-            break
+            break  # No more records available.
         offset += limit
     return all_data
 
@@ -189,6 +188,7 @@ def process_data(year: int, month: int, day: int) -> None:
     if not incidents:
         return
 
+    # Use only records with valid geolocation.
     incidents_with_loc = [inc for inc in incidents if inc["latitude"] is not None and inc["longitude"] is not None]
     if not incidents_with_loc:
         return
@@ -207,6 +207,7 @@ def process_data(year: int, month: int, day: int) -> None:
         except Exception:
             continue
 
+    # Sort first by descending people, then by descending case number.
     nearby_incidents.sort(key=lambda inc: (-inc["people"], -int(inc["case_number"])))
     store_data_in_duckdb(incidents_with_loc)
 
