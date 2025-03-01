@@ -59,7 +59,7 @@ def fetch_data(url: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[s
         logging.error(f"Error fetching data from {url}: {e}")
         return []
 
-def fetch_all_data(url: str, params: Optional[Dict[str, Any]] = None, limit: int = 100000) -> List[Dict[str, Any]]:
+def fetch_all_data(url: str, params: Optional[Dict[str, Any]] = None, limit: int = 10000) -> List[Dict[str, Any]]:
     """
     Fetch all records from the API endpoint using pagination.
     Uses '$limit' and '$offset' parameters to retrieve all available data.
