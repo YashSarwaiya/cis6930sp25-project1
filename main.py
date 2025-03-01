@@ -8,14 +8,15 @@ API_ENDPOINTS = {
 #!/usr/bin/env python3
 import argparse
 import logging
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 import requests
 import duckdb
 from geopy.distance import geodesic
 
-# Configure logging for debugging and advanced error tracking
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+# Configure logging to output to STDERR so that STDOUT only has final results.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
 
 # API endpoints for retrieving data
 API_ENDPOINTS = {
@@ -132,7 +133,7 @@ def clean_record(category: str, entry: Dict[str, Any], target_date: str) -> Opti
             }
 
         elif category == "crime_responses":
-            # Use report_date for filtering, not offense_date.
+            # Use report_date for filtering
             raw_date = entry.get("report_date", "")
             parsed_date = parse_date(raw_date)
             if parsed_date != target_date:
@@ -231,7 +232,7 @@ def process_data(year: int, month: int, day: int) -> None:
     # Optionally store data in DuckDB for debugging; not used further.
     store_data_in_duckdb(incidents_with_loc)
 
-    # Output the results exactly as required: number of people, then a tab, then the case number.
+    # Output the final results (only this is sent to STDOUT)
     for inc in nearby_incidents:
         print(f"{inc['people']}\t{inc['case_number']}")
 
