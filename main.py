@@ -15,7 +15,7 @@ import requests
 import duckdb
 from geopy.distance import geodesic
 
-# Configure logging to STDERR, then disable logging output so STDOUT contains only the final results.
+# Configure logging to output to STDERR then disable logging output so STDOUT contains only final results.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
 logging.disable(logging.CRITICAL)
 
@@ -73,7 +73,7 @@ def fetch_all_data(url: str, params: Optional[Dict[str, Any]] = None, limit: int
             break
         all_data.extend(batch)
         if len(batch) < limit:
-            break  # No more records available.
+            break
         offset += limit
     return all_data
 
