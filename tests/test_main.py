@@ -3,7 +3,7 @@ import sys
 import main  # import our main module
 
 def fake_fetch_all_data(url, params=None, limit=10000):
-    # For "crime_responses", return sample data in ISO format; for others, return empty lists.
+    # For crime_responses endpoint, return sample data in ISO format.
     if "crimereports" in url:
         return [
             {
@@ -41,21 +41,16 @@ def fake_fetch_all_data(url, params=None, limit=10000):
         return []
 
 def test_process_data(monkeypatch):
-    # Monkeypatch the fetch_all_data function in our main module.
     monkeypatch.setattr(main, "fetch_all_data", fake_fetch_all_data)
     
-    # Capture STDOUT.
     captured_output = io.StringIO()
     sys.stdout = captured_output
     
-    # Call process_data with target date 2024-12-12.
     main.process_data(2024, 12, 12)
     
-    # Restore STDOUT.
     sys.stdout = sys.__stdout__
     output = captured_output.getvalue().strip()
     
-    # Expected output order: records sorted by descending case number.
     expected_lines = [
         "1\t225000033",
         "1\t225000026",

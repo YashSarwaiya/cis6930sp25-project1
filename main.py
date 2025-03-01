@@ -15,7 +15,7 @@ import requests
 import duckdb
 from geopy.distance import geodesic
 
-# Configure logging to output to STDERR then disable logging output so STDOUT contains only final results.
+# Configure logging to STDERR then disable logging output so STDOUT contains only final results.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
 logging.disable(logging.CRITICAL)
 
@@ -73,7 +73,7 @@ def fetch_all_data(url: str, params: Optional[Dict[str, Any]] = None, limit: int
             break
         all_data.extend(batch)
         if len(batch) < limit:
-            break
+            break  # No more records available.
         offset += limit
     return all_data
 
@@ -212,7 +212,7 @@ def process_data(year: int, month: int, day: int) -> None:
     store_data_in_duckdb(incidents_with_loc)
 
     for inc in nearby_incidents:
-        print(f"{inc['people']}\t{inc['case_number']}")
+        print(f"{inc['people']}\t{inc['case_number']}", flush=True)
 
 def parse_args() -> argparse.Namespace:
     """
